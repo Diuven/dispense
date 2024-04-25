@@ -1,0 +1,6 @@
+[submodule "include/uWebSockets"]
+	path = include/uWebSockets
+	url = git@github.com:uNetworking/uWebSockets.git
+[submodule "include/easywsclient"]
+	path = include/easywsclient
+	url = git@github.com:dhbaird/easywsclient.git
