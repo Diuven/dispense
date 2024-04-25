@@ -33,7 +33,7 @@ int send_initialization(int client_id)
 
     using easywsclient::WebSocket;
     WebSocket::pointer ws = nullptr;
-    std::string url = "ws://localhost:" + std::to_string(ENTRY_SERVER_PORT);
+    std::string url = "ws://" + SERVER_HOSTNAME + ":" + std::to_string(ENTRY_SERVER_PORT);
 
     if (!connect_to_server(ws, url))
     {
@@ -145,7 +145,7 @@ void start_main_client(int client_id, int port)
     MainClientHandler handler(client_id, port);
 
     WebSocket::pointer ws = nullptr;
-    std::string url = "ws://localhost:" + std::to_string(port);
+    std::string url = "ws://" + SERVER_HOSTNAME + ":" + std::to_string(port);
     if (!connect_to_server(ws, url))
     {
         std::cout << "Failed to connect to server. Exiting" << std::endl;

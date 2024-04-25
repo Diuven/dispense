@@ -4,6 +4,7 @@
 
 const int ENTRY_SERVER_PORT = 9000;
 const int CLIENT_COUNT = 16;
+const std::string SERVER_HOSTNAME = "localhost";
 
 // std::pair<std::string_view, std::string_view> split_message(const std::string_view &s, const std::string &delimiter)
 // {
