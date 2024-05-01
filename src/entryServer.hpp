@@ -1,4 +1,5 @@
 #include <iostream>
+#include <queue>
 #include "App.h"
 
 #ifndef DATA_MODEL_HPP
@@ -9,22 +10,81 @@
 #endif
 #include <fstream>
 
-std::unordered_set<int> node_ids;
-std::unordered_map<int, int> action_ids;
-
 class EntryServerHandler
 {
 public:
+    bool booting_up = true;
+    bool inserting_data = false; // TODO, to keep the queue exploding
+    bool done = false;
+
+    std::unordered_set<int> node_ids;
+    std::unordered_map<int, int> action_ids;
+    Vector a_rows[VECTOR_SIZE];
+    Vector b_cols[VECTOR_SIZE];
+    std::queue<int> task_queue;
+    Matrix result;
+
+    std::unordered_map<int, int> task_status;
+
     EntryServerHandler()
     {
+        booting_up = true;
+        inserting_data = false;
+        done = false;
     }
 
-    int make_action_id()
+    int make_action_id(int row_idx, int col_idx)
+    {
+        return row_idx * VECTOR_SIZE + col_idx + 1;
+    }
+    std::tuple<int, int> unpack_action_id(int action_id)
+    {
+        action_id -= 1;
+        return {action_id / VECTOR_SIZE, action_id % VECTOR_SIZE};
+    }
+    int make_random_id()
     {
         return rand() % 100 + 1;
     }
 
-    Vector a, b;
+    void set_input_data(Matrix &A, Matrix &B, Matrix &C)
+    {
+        for (int i = 0; i < A.rows; i++)
+        {
+            a_rows[i] = A.getRow(i);
+        }
+        for (int i = 0; i < B.cols; i++)
+        {
+            b_cols[i] = B.getCol(i);
+        }
+        result = C;
+
+        for (int i = 0; i < A.rows; i++)
+        {
+            for (int j = 0; j < B.cols; j++)
+            {
+                task_queue.push(make_action_id(i, j));
+            }
+        }
+        if (DEBUG)
+            std::cout << "Task queue size: " << task_queue.size() << std::endl;
+    }
+
+    int assign_single_task(int node_id)
+    {
+        if (task_queue.front() == 0)
+            task_queue.pop();
+        if (task_queue.size() == 0)
+        {
+            return -1;
+        }
+        int action_id = task_queue.front();
+        task_queue.pop();
+
+        action_ids[node_id] = action_id;
+
+        return action_id;
+    }
 
     std::tuple<std::string, std::string> handle_enter(int node_id, std::string_view &data)
     {
@@ -35,52 +95,107 @@ public:
         }
 
         node_ids.insert(node_id);
-        action_ids[node_id] = make_action_id();
 
-        return std::make_tuple("ASSIGN_ACTION", "1");
+        std::cout << "Client id " + std::to_string(node_id) + " is connected.\n";
+
+        if (booting_up)
+        {
+            std::cout << "Currently booting up!\n";
+            action_ids[node_id] = -1;
+            return std::make_tuple("ENTER_RESP", "1");
+        }
+        else
+        {
+            int action_id = assign_single_task(node_id);
+            if (DEBUG)
+                std::cout << "Assigned task " << action_id << " to client " << node_id << std::endl;
+            if (action_id == -1)
+            {
+                return std::make_tuple("ENTER_RESP", "1");
+            }
+            return std::make_tuple("ASSIGN_ACTION", "1");
+        }
     }
 
     std::tuple<std::string, std::string> handle_close(int node_id, std::string_view &data)
     {
         if (node_ids.count(node_id) == 0)
         {
-            std::cout << "Client id " + std::to_string(node_id) + " is not found.\n";
+            if (DEBUG)
+                std::cout << "Client id " + std::to_string(node_id) + " is not found.\n";
             return std::make_tuple("ENTER_RESP", "0");
         }
 
+        if (action_ids.count(node_id) > 0 && action_ids[node_id] > 0)
+        {
+            task_queue.push(action_ids[node_id]);
+        }
+        action_ids.erase(node_id);
         node_ids.erase(node_id);
         return std::make_tuple("ENTER_RESP", "1");
     }
 
+    std::tuple<std::string, std::string> handle_nudge(int node_id, std::string_view &data)
+    {
+        if (booting_up)
+        {
+            if (DEBUG)
+                std::cout << "Still booting up!\n";
+            return std::make_tuple("NUDGE_RESP", "1");
+        }
+        else
+        {
+            int action_id = assign_single_task(node_id);
+            if (DEBUG)
+                std::cout << "Assigned task " << action_id << " to client " << node_id << std::endl;
+            if (action_id == -1)
+            {
+                return std::make_tuple("NUDGE_RESP", "1");
+            }
+            return std::make_tuple("ASSIGN_ACTION", "1");
+        }
+    }
+
     std::tuple<std::string, std::string> handle_get_a(int node_id, std::string_view &data)
     {
-        a = Vector(16);
-        randomVector(a);
-        std::string serialized_a = a.serialize();
+        auto [a_row_idx, _] = unpack_action_id(action_ids[node_id]);
+        std::string serialized_a = a_rows[a_row_idx].serialize();
         return std::make_tuple("GET_A_RESP", serialized_a);
     }
 
     std::tuple<std::string, std::string> handle_get_b(int node_id, std::string_view &data)
     {
-        b = Vector(16);
-        randomVector(b);
-        std::string serialized_b = b.serialize();
+        auto [_, b_col_idx] = unpack_action_id(action_ids[node_id]);
+        std::string serialized_b = b_cols[b_col_idx].serialize();
         return std::make_tuple("GET_B_RESP", serialized_b);
     }
 
     std::tuple<std::string, std::string> handle_return(int node_id, std::string_view &data)
     {
-        long long result = a.dot(b);
+        int action_id = action_ids[node_id];
+        auto [row_idx, col_idx] = unpack_action_id(action_id);
+        // long long result = a_rows[row_idx].dot(b_cols[col_idx]);
         long long got_result = std::stoll(std::string(data));
-        if (result != got_result)
+        result.set(row_idx, col_idx, got_result);
+        action_ids.erase(node_id);
+
+        int new_action_id = assign_single_task(node_id);
+        if (new_action_id == -1)
         {
-            std::cout << "Result mismatch for client " << node_id << "!!!" << std::endl;
-            return std::make_tuple("", "");
+            if (task_queue.size() == 0 && action_ids.size() == 0)
+            {
+                std::cout << "All tasks are done!" << std::endl;
+                done = true;
+                return std::make_tuple("STOP", "");
+            }
+            else
+            {
+                return std::make_tuple("STOP", "");
+            }
         }
         else
         {
-            std::cout << "Result matched for client " << node_id << "!!!" << std::endl;
-            return std::make_tuple("", "");
+            return std::make_tuple("ASSIGN_ACTION", "1");
         }
     }
 
@@ -93,11 +208,12 @@ public:
         auto [node_id_str, op_type, action_id_str, data] = split_message(message);
         int node_id = std::stoi(std::string(node_id_str));
         int got_action_id = (action_id_str.size() > 0) ? std::stoi(std::string(action_id_str)) : -1;
-        std::cout << "Received " << op_type << " , " << data << " from client " << node_id << std::endl;
+        if (DEBUG)
+            std::cout << "Received operation: " << op_type << " of action id " << got_action_id << " with data length of : " << data.size() << " from client " << node_id << std::endl;
 
         if (got_action_id > 0 && got_action_id != action_ids[node_id])
         {
-            std::cout << "Action ID mismatch for client " << node_id << "!!!" << std::endl;
+            std::cerr << "Action ID mismatch for client " << node_id << "!!!" << std::endl;
             return;
         }
 
@@ -107,6 +223,8 @@ public:
             std::tie(res_op_type, res_data) = handle_enter(node_id, data);
         else if (op_type == "CLOSE")
             std::tie(res_op_type, res_data) = handle_close(node_id, data);
+        else if (op_type == "NUDGE")
+            std::tie(res_op_type, res_data) = handle_nudge(node_id, data);
         else if (op_type == "GET_A")
             std::tie(res_op_type, res_data) = handle_get_a(node_id, data);
         else if (op_type == "GET_B")
@@ -116,13 +234,14 @@ public:
         else
         {
             res_data = "Invalid operation";
-            std::cout << "Invalid operation " << op_type << " from client " << node_id << std::endl;
+            std::cerr << "Invalid operation " << op_type << " from client " << node_id << std::endl;
             return;
         }
 
         int action_id = action_ids[node_id];
 
-        std::cout << "Sending response " << res_op_type << " , " << action_id << " , " << res_data << " to client " << node_id << std::endl;
+        if (DEBUG)
+            std::cout << "Sending response " << res_op_type << " of action id " << action_id << " with data length of : " << res_data.size() << " to client " << node_id << std::endl;
         std::string response = format_message(node_id, res_op_type, action_id, res_data);
         ws->send(response, uWS::OpCode::TEXT, response.length() < 16 * 1024);
     }
@@ -138,47 +257,23 @@ public:
     // http handlers
     void get_stat_handler(uWS::HttpResponse<false> *res, uWS::HttpRequest *req)
     {
-        res->end("Client count: " + std::to_string(node_ids.size()) + "\n");
+        std::string document = "<h1>Hello " + std::string(req->getParameter(0)) + "</h1>";
+        document += "<p>Booting up: " + std::to_string(booting_up) + "</p>";
+        document += "<p>Done: " + std::to_string(done) + "</p>";
+        document += "<p>Client count: " + std::to_string(node_ids.size()) + "</p>";
+        document += "<p>Task queue size: " + std::to_string(task_queue.size()) + "</p>";
+        document += "<p>Task status: ";
+        auto [row_idx, col_idx] = unpack_action_id(task_queue.front());
+        document += "(" + std::to_string(row_idx) + ", " + std::to_string(col_idx) + ") ";
+        // for (auto x : task_queue)
+        // {
+        //     auto [row_idx, col_idx] = unpack_action_id(x);
+        //     document += "(" + std::to_string(row_idx) + ", " + std::to_string(col_idx) + ") ";
+        //     count += 1;
+        //     if (count > 10)
+        //         break;
+        // }
+        document += "</p>";
+        res->end(document);
     }
 };
-
-std::tuple<EntryServerHandler, uWS::App> get_entry_server()
-{
-    auto handler = new EntryServerHandler();
-    uWS::App app =
-        uWS::App()
-            .get("/hello/:name",
-                 [&handler](auto *res, auto *req)
-                 { handler->get_stat_handler(res, req); })
-            .ws<WebSocketData>(
-                "/*",
-                {
-                    /* Settings */
-                    .compression = uWS::CompressOptions(uWS::DEDICATED_COMPRESSOR_4KB | uWS::DEDICATED_DECOMPRESSOR),
-                    .maxPayloadLength = 100 * 1024 * 1024,
-                    .idleTimeout = 16,
-                    .maxBackpressure = 100 * 1024 * 1024,
-                    .closeOnBackpressureLimit = false,
-                    .resetIdleTimeoutOnSend = false,
-                    .sendPingsAutomatically = true,
-                    /* Handlers */
-                    .upgrade = nullptr,
-                    .open = [](auto * /*ws*/) {},
-                    .message = [&handler](auto *ws, std::string_view message, uWS::OpCode opCode)
-                    { handler->message_handler(ws, message, opCode); },
-                    .dropped = [](auto * /*ws*/, std::string_view /*message*/, uWS::OpCode /*opCode*/)
-                    { std::cout << "Dropped message" << std::endl; },
-                    .drain = [](auto * /*ws*/) {},
-                    .ping = [](auto * /*ws*/, std::string_view)
-                    { std::cout << "Ping received." << std::endl; },
-                    .pong = [](auto * /*ws*/, std::string_view)
-                    { std::cout << "Pong received." << std::endl; },
-                    .close = [&handler](auto *ws, int code, std::string_view message)
-                    { handler->close_handler(ws, code, message); },
-                });
-
-    app.listen(ENTRY_SERVER_PORT, [](auto *listen_socket)
-               {if (listen_socket) {std::cout << "Listening on port " << ENTRY_SERVER_PORT << std::endl;} });
-
-    return std::make_tuple(std::move(*handler), std::move(app));
-}

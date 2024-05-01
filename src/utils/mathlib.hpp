@@ -50,12 +50,12 @@ public:
         return result;
     }
 
-    long long dot(Vector &other)
+    long long dot(const Vector &other)
     {
         long long result = 0;
         for (int i = 0; i < size; i++)
         {
-            result += get(i) * other.get(i);
+            result += data[i] * other.data[i];
         }
         return result;
     }
@@ -87,6 +87,13 @@ private:
 public:
     int rows;
     int cols;
+
+    Matrix()
+    {
+        this->rows = 0;
+        this->cols = 0;
+        this->data = nullptr;
+    }
     Matrix(int rows, int cols)
     {
         this->rows = rows;
@@ -170,7 +177,8 @@ public:
 };
 
 const int MAX_VALUE = 1000;
-const int SIZE = 2000;
+const int SIZE = 2000; // should not use
+const int VECTOR_SIZE = 1024;
 
 void randomVector(Vector &v)
 {

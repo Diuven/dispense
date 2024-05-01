@@ -10,12 +10,7 @@
 const int ENTRY_SERVER_PORT = 9000;
 const int CLIENT_COUNT = 16;
 const std::string SERVER_HOSTNAME = "10.29.230.222";
-
-// std::pair<std::string_view, std::string_view> split_message(const std::string_view &s, const std::string &delimiter)
-// {
-//     size_t pos = s.find(delimiter);
-//     return {s.substr(0, pos), s.substr(pos + delimiter.length())};
-// }
+const bool DEBUG = false;
 
 std::tuple<std::string_view, std::string_view, std::string_view, std::string_view> split_message(const std::string_view &s)
 {
