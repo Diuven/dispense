@@ -1,5 +1,9 @@
 #include <random>
 
+#ifndef MATHLIB_HPP
+#define MATHLIB_HPP
+#endif
+
 class Vector
 {
 private:

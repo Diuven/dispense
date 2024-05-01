@@ -1,10 +1,15 @@
 #include <string>
 #include <array>
 #include <utility>
+#include <coroutine>
+
+#ifndef DATA_MODEL_HPP
+#define DATA_MODEL_HPP
+#endif
 
 const int ENTRY_SERVER_PORT = 9000;
 const int CLIENT_COUNT = 16;
-const std::string SERVER_HOSTNAME = "localhost";
+const std::string SERVER_HOSTNAME = "10.29.230.222";
 
 // std::pair<std::string_view, std::string_view> split_message(const std::string_view &s, const std::string &delimiter)
 // {
@@ -17,6 +22,12 @@ std::tuple<std::string_view, std::string_view, std::string_view> split_message(c
     size_t pos1 = s.find(";;");
     size_t pos2 = s.find(";;", pos1 + 2);
     return {s.substr(0, pos1), s.substr(pos1 + 2, pos2 - pos1 - 2), s.substr(pos2 + 2)};
+}
+
+std::string format_message(int node_id, const std::string &op_type, const std::string &data)
+{
+    std::string message = std::to_string(node_id) + ";;" + op_type + ";;" + data;
+    return std::move(message);
 }
 
 class ISerializable
@@ -61,7 +72,7 @@ public:
     WebSocketData(OpCode op, const std::string &s)
     {
         this->op = op;
-        this->data = data;
+        this->data = s;
     }
 
     static ISerializable *deserialize(OpCode op, const std::string &s)
@@ -110,24 +121,18 @@ public:
 
 static int DATA_SIZE = 10;
 
-// template <class T, size_t N>
-// class Vector : public ISerializable
-// {
-// public:
-//     T data[N];
-//     std::string get_type() const
-//     {
-//         return "VECTOR_INT:"; // only int for now
-//     }
+struct promise;
 
-//     std::string serialize() const override
-//     {
-//         auto result = get_type() + std::string(reinterpret_cast<const char *>(data), sizeof(data));
-//         return std::move(result);
-//     }
+struct coroutine : std::coroutine_handle<promise>
+{
+    using promise_type = ::promise;
+};
 
-//     void deserialize(const std::string &s) override
-//     {
-//         std::memcpy(data, s.data(), sizeof(data));
-//     }
-// };
+struct promise
+{
+    coroutine get_return_object() { return {coroutine::from_promise(*this)}; }
+    std::suspend_always initial_suspend() noexcept { return {}; }
+    std::suspend_always final_suspend() noexcept { return {}; }
+    void return_void() {}
+    void unhandled_exception() {}
+};
