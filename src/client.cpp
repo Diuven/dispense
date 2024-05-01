@@ -28,11 +28,13 @@ bool connect_to_server(easywsclient::WebSocket::pointer &ws, const std::string &
         std::cout << "Failed to connect to server. Exiting" << std::endl;
         return false;
     }
+    return false;
 }
 
 class NodeHandler
 {
 public:
+    bool stop = false;
     int node_id;
 
     int action_id;
@@ -50,93 +52,112 @@ public:
     std::tuple<std::string, std::string> handle_stop(std::string_view &data)
     {
         std::cout << "Received stop message. Stopping..." << std::endl;
+        stop = true;
         return std::make_tuple("", "");
     }
 
     std::tuple<std::string, std::string> handle_enter_resp(std::string_view &data)
     {
+        int success = std::stoi(std::string(data));
+        if (success)
+        {
+            std::cout << "Successfully entered the network" << std::endl;
+        }
+        else
+        {
+            std::cout << "Failed to enter the network. Possibly port collision. Exiting..." << std::endl;
+            stop = true;
+        }
         return std::make_tuple("", "");
     }
 
-    std::string message_handler(const std::string &message, bool &stop)
+    std::tuple<std::string, std::string> handle_assign_action(int got_action_id, std::string_view &data)
     {
-        auto [node_id_str, op_type, data] = split_message(message);
+        this->action_id = got_action_id;
+        a = Vector();
+        b = Vector();
+        std::cout << "Assigned action: " << this->action_id << std::endl;
+        return std::make_tuple("GET_A", "");
+    }
+
+    std::tuple<std::string, std::string> handle_get_a_resp(int got_action_id, std::string_view &data)
+    {
+        if (got_action_id != this->action_id)
+        {
+            std::cout << "Action ID mismatch in handle_get_a_resp. Exiting..." << std::endl;
+            stop = true;
+            return std::make_tuple("", "");
+        }
+
+        a = Vector().deserialize(std::string(data));
+        std::cout << "Received vector A" << std::endl;
+        for (int i = 0; i < a.size; i++)
+        {
+            std::cout << a.get(i) << " ";
+        }
+        std::cout << std::endl;
+        return std::make_tuple("GET_B", "");
+    }
+
+    std::tuple<std::string, std::string> handle_get_b_resp(int got_action_id, std::string_view &data)
+    {
+        if (got_action_id != this->action_id)
+        {
+            std::cout << "Action ID mismatch in handle_get_b_resp. Exiting..." << std::endl;
+            stop = true;
+            return std::make_tuple("", "");
+        }
+
+        b = Vector().deserialize(std::string(data));
+        std::cout << "Received vector B" << std::endl;
+        for (int i = 0; i < a.size; i++)
+        {
+            std::cout << b.get(i) << " ";
+        }
+        std::cout << std::endl;
+
+        long long result = a.dot(b);
+        return std::make_tuple("RETURN", std::to_string(result));
+    }
+
+    std::string message_handler(const std::string &message)
+    {
+        auto [node_id_str, op_type, action_id_str, data] = split_message(message);
+        int node_id = std::stoi(std::string(node_id_str));
+        int got_action_id = (action_id_str.size() > 0) ? std::stoi(std::string(action_id_str)) : -1;
         std::cout << "Received operation: " << op_type << " with data: " << data << std::endl;
 
         std::string res_op_type = "", res_data = "";
 
         if (op_type == "STOP")
-        {
             std::tie(res_op_type, res_data) = handle_stop(data);
-            stop = true;
-        }
         else if (op_type == "ENTER_RESP")
-        {
             std::tie(res_op_type, res_data) = handle_enter_resp(data);
-        }
+        else if (op_type == "ASSIGN_ACTION")
+            std::tie(res_op_type, res_data) = handle_assign_action(got_action_id, data);
+        else if (op_type == "GET_A_RESP")
+            std::tie(res_op_type, res_data) = handle_get_a_resp(got_action_id, data);
+        else if (op_type == "GET_B_RESP")
+            std::tie(res_op_type, res_data) = handle_get_b_resp(got_action_id, data);
         else
         {
             std::cout << "Invalid operation " << op_type << " with data: " << data << std::endl;
+        }
+
+        if (got_action_id != this->action_id)
+        {
+            std::cout << "Action ID mismatch in message_handler. Exiting..." << std::endl;
+            stop = true;
         }
 
         if (res_op_type == "")
             return "";
         else
         {
-            std::string response = format_message(node_id, res_op_type, res_data);
+            std::string response = format_message(
+                node_id, res_op_type, this->action_id, res_data);
             return response;
         }
-
-        // if (op_type == "STOP")
-        // {
-        //     std::cout << "Received stop message. Stopping..." << std::endl;
-        //     stop = true;
-        //     return "";
-        // }
-
-        // if (op_type == "ASSIGN_ACTION")
-        // {
-        //     action_id = std::stoi(std::string(data));
-        //     a = Vector();
-        //     b = Vector();
-        //     std::cout << "Assigned action: " << action_id << std::endl;
-        //     return "";
-        // }
-
-        // if (op_type == "VECTOR_A")
-        // {
-        //     a = Vector().deserialize(std::string(data));
-        //     std::cout << std::endl;
-        //     return "";
-        // }
-
-        // if (op_type == "VECTOR_B")
-        // {
-        //     b = Vector().deserialize(std::string(data));
-        //     std::cout << std::endl;
-        //     return "";
-        // }
-
-        // if (op_type == "CALCULATE")
-        // {
-        //     if (a.size != b.size)
-        //     {
-        //         std::cout << "Vector sizes do not match. Exiting" << std::endl;
-        //         stop = true;
-        //         return "";
-        //     }
-
-        //     long long result = 0;
-        //     for (int i = 0; i < a.size; i++)
-        //     {
-        //         result += a.get(i) * b.get(i);
-        //     }
-
-        //     std::string response = std::to_string(node_id) + ";;RESULT;;" + std::to_string(result);
-        //     return response;
-        // }
-
-        // return "";
     }
 };
 
@@ -164,7 +185,7 @@ public:
         if (ws == nullptr)
             return;
         std::cout << "DESTRUCTOR!!! closing connection" << std::endl;
-        ws->send(format_message(node_id, "CLOSE", ""));
+        ws->send(format_message(node_id, "CLOSE", -1, ""));
         ws->poll(-1); // recieve response?
         ws->close();
         delete ws;
@@ -220,35 +241,22 @@ int main()
     std::signal(SIGILL, &signal_handler);
     std::signal(SIGTERM, &signal_handler);
 
-    std::string message = format_message(node_id, "ENTER", "");
+    std::string message = format_message(node_id, "ENTER", -1, "");
     manager.send_message(message);
 
-    bool stop = false;
-    while (!stop)
+    while (!handler.stop)
     {
         manager.ws->poll(-1);
         manager.ws->dispatch(
-            [&stop, &handler](const std::string &message)
+            [&handler](const std::string &message)
             {
-                std::string response = handler.message_handler(message, stop);
+                std::string response = handler.message_handler(message);
                 if (response != "")
                 {
                     manager.send_message(response);
                 }
             });
     }
-
-    // int port = send_initialization(node_id);
-
-    // std::cout << "Assigned port: " << port << std::endl;
-
-    // if (port < 0)
-    // {
-    //     std::cout << "Failed to assign port. Exiting" << std::endl;
-    //     return -1;
-    // }
-
-    // start_main_client(node_id, port);
 
     return 0;
 }

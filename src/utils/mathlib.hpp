@@ -6,10 +6,8 @@
 
 class Vector
 {
-private:
-    int *data;
-
 public:
+    int *data;
     int size;
     Vector(int size = 0)
     {
@@ -22,12 +20,12 @@ public:
         // delete[] data;
     }
 
-    int get(int i)
+    inline int get(int i)
     {
         return data[i];
     }
 
-    void set(int i, int value)
+    inline void set(int i, int value)
     {
         data[i] = value;
     }
@@ -48,6 +46,16 @@ public:
         for (int i = 0; i < size; i++)
         {
             result.set(i, get(i) * scalar);
+        }
+        return result;
+    }
+
+    long long dot(Vector &other)
+    {
+        long long result = 0;
+        for (int i = 0; i < size; i++)
+        {
+            result += get(i) * other.get(i);
         }
         return result;
     }

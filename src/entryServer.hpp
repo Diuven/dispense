@@ -10,6 +10,7 @@
 #include <fstream>
 
 std::unordered_set<int> node_ids;
+std::unordered_map<int, int> action_ids;
 
 class EntryServerHandler
 {
@@ -18,28 +19,69 @@ public:
     {
     }
 
-    std::string handle_enter(int node_id, std::string_view &data)
+    int make_action_id()
+    {
+        return rand() % 100 + 1;
+    }
+
+    Vector a, b;
+
+    std::tuple<std::string, std::string> handle_enter(int node_id, std::string_view &data)
     {
         if (node_ids.count(node_id) > 0)
         {
             std::cout << "Client id " + std::to_string(node_id) + " is already taken.\n";
-            return "0";
+            return std::make_tuple("ENTER_RESP", "0");
         }
 
         node_ids.insert(node_id);
-        return "1";
+        action_ids[node_id] = make_action_id();
+
+        return std::make_tuple("ASSIGN_ACTION", "1");
     }
 
-    std::string handle_close(int node_id, std::string_view &data)
+    std::tuple<std::string, std::string> handle_close(int node_id, std::string_view &data)
     {
         if (node_ids.count(node_id) == 0)
         {
             std::cout << "Client id " + std::to_string(node_id) + " is not found.\n";
-            return "0";
+            return std::make_tuple("ENTER_RESP", "0");
         }
 
         node_ids.erase(node_id);
-        return "1";
+        return std::make_tuple("ENTER_RESP", "1");
+    }
+
+    std::tuple<std::string, std::string> handle_get_a(int node_id, std::string_view &data)
+    {
+        a = Vector(16);
+        randomVector(a);
+        std::string serialized_a = a.serialize();
+        return std::make_tuple("GET_A_RESP", serialized_a);
+    }
+
+    std::tuple<std::string, std::string> handle_get_b(int node_id, std::string_view &data)
+    {
+        b = Vector(16);
+        randomVector(b);
+        std::string serialized_b = b.serialize();
+        return std::make_tuple("GET_B_RESP", serialized_b);
+    }
+
+    std::tuple<std::string, std::string> handle_return(int node_id, std::string_view &data)
+    {
+        long long result = a.dot(b);
+        long long got_result = std::stoll(std::string(data));
+        if (result != got_result)
+        {
+            std::cout << "Result mismatch for client " << node_id << "!!!" << std::endl;
+            return std::make_tuple("", "");
+        }
+        else
+        {
+            std::cout << "Result matched for client " << node_id << "!!!" << std::endl;
+            return std::make_tuple("", "");
+        }
     }
 
     // websocket handlers
@@ -48,17 +90,29 @@ public:
         std::string_view message,
         uWS::OpCode opCode)
     {
-        auto [node_id_str, op_type, data] = split_message(message);
+        auto [node_id_str, op_type, action_id_str, data] = split_message(message);
         int node_id = std::stoi(std::string(node_id_str));
+        int got_action_id = (action_id_str.size() > 0) ? std::stoi(std::string(action_id_str)) : -1;
         std::cout << "Received " << op_type << " , " << data << " from client " << node_id << std::endl;
 
-        std::string res_op_type = std::string(op_type) + "_RESP";
-        std::string res_data;
+        if (got_action_id > 0 && got_action_id != action_ids[node_id])
+        {
+            std::cout << "Action ID mismatch for client " << node_id << "!!!" << std::endl;
+            return;
+        }
+
+        std::string res_op_type, res_data;
 
         if (op_type == "ENTER")
-            res_data = handle_enter(node_id, data);
+            std::tie(res_op_type, res_data) = handle_enter(node_id, data);
         else if (op_type == "CLOSE")
-            res_data = handle_close(node_id, data);
+            std::tie(res_op_type, res_data) = handle_close(node_id, data);
+        else if (op_type == "GET_A")
+            std::tie(res_op_type, res_data) = handle_get_a(node_id, data);
+        else if (op_type == "GET_B")
+            std::tie(res_op_type, res_data) = handle_get_b(node_id, data);
+        else if (op_type == "RETURN")
+            std::tie(res_op_type, res_data) = handle_return(node_id, data);
         else
         {
             res_data = "Invalid operation";
@@ -66,8 +120,10 @@ public:
             return;
         }
 
-        std::cout << "Sending response " << res_op_type << " , " << res_data << " to client " << node_id << std::endl;
-        std::string response = format_message(node_id, res_op_type, res_data);
+        int action_id = action_ids[node_id];
+
+        std::cout << "Sending response " << res_op_type << " , " << action_id << " , " << res_data << " to client " << node_id << std::endl;
+        std::string response = format_message(node_id, res_op_type, action_id, res_data);
         ws->send(response, uWS::OpCode::TEXT, response.length() < 16 * 1024);
     }
 

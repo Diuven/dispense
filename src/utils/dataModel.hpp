@@ -17,16 +17,21 @@ const std::string SERVER_HOSTNAME = "10.29.230.222";
 //     return {s.substr(0, pos), s.substr(pos + delimiter.length())};
 // }
 
-std::tuple<std::string_view, std::string_view, std::string_view> split_message(const std::string_view &s)
+std::tuple<std::string_view, std::string_view, std::string_view, std::string_view> split_message(const std::string_view &s)
 {
     size_t pos1 = s.find(";;");
     size_t pos2 = s.find(";;", pos1 + 2);
-    return {s.substr(0, pos1), s.substr(pos1 + 2, pos2 - pos1 - 2), s.substr(pos2 + 2)};
+    size_t pos3 = s.find(";;", pos2 + 2);
+    return {
+        s.substr(0, pos1),
+        s.substr(pos1 + 2, pos2 - pos1 - 2),
+        s.substr(pos2 + 2, pos3 - pos2 - 2),
+        s.substr(pos3 + 2)};
 }
 
-std::string format_message(int node_id, const std::string &op_type, const std::string &data)
+std::string format_message(int node_id, const std::string &op_type, int action_id, const std::string &data)
 {
-    std::string message = std::to_string(node_id) + ";;" + op_type + ";;" + data;
+    std::string message = std::to_string(node_id) + ";;" + op_type + ";;" + std::to_string(action_id) + ";;" + data;
     return std::move(message);
 }
 
