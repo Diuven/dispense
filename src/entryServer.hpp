@@ -10,12 +10,45 @@
 #endif
 #include <fstream>
 
+struct StatData
+{
+    bool booting_up;
+    bool inserting_data;
+    bool done;
+
+    int remaining_task_count;
+    int client_count;
+    long long elapsed_time;
+
+    StatData(bool booting_up, bool inserting_data, bool done, int remaining_task_count, int client_count, long long elapsed_time)
+    {
+        this->booting_up = booting_up;
+        this->inserting_data = inserting_data;
+        this->done = done;
+        this->remaining_task_count = remaining_task_count;
+        this->client_count = client_count;
+        this->elapsed_time = elapsed_time;
+    }
+
+    std::string serialize()
+    {
+        std::string s = std::to_string(booting_up) + ";;" +
+                        std::to_string(inserting_data) + ";;" +
+                        std::to_string(done) + ";;" +
+                        std::to_string(remaining_task_count) + ";;" +
+                        std::to_string(client_count) + ";;" +
+                        std::to_string(elapsed_time);
+        return s;
+    }
+};
+
 class EntryServerHandler
 {
 public:
     bool booting_up = true;
     bool inserting_data = false; // TODO, to keep the queue exploding
     bool done = false;
+    std::chrono::time_point<std::chrono::high_resolution_clock> start;
 
     std::unordered_set<int> node_ids;
     std::unordered_map<int, int> action_ids;
@@ -199,6 +232,26 @@ public:
         }
     }
 
+    StatData get_stat()
+    {
+        int remaining_task_count = task_queue.size();
+        int client_count = node_ids.size();
+        long long elapsed_time = 0;
+        if (!booting_up)
+        {
+            auto now = std::chrono::high_resolution_clock::now();
+            elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
+        }
+        return StatData(booting_up, inserting_data, done, remaining_task_count, client_count, elapsed_time);
+    }
+
+    std::tuple<std::string, std::string> handle_stat(int node_id, std::string_view &data)
+    {
+        StatData stat = get_stat();
+        std::string serialized_data = stat.serialize();
+        return std::make_tuple("STAT_RESP", serialized_data);
+    }
+
     // websocket handlers
     void message_handler(
         uWS::WebSocket<false, true, WebSocketData> *ws,
@@ -231,6 +284,8 @@ public:
             std::tie(res_op_type, res_data) = handle_get_b(node_id, data);
         else if (op_type == "RETURN")
             std::tie(res_op_type, res_data) = handle_return(node_id, data);
+        else if (op_type == "STAT")
+            std::tie(res_op_type, res_data) = handle_stat(node_id, data);
         else
         {
             res_data = "Invalid operation";
@@ -257,23 +312,36 @@ public:
     // http handlers
     void get_stat_handler(uWS::HttpResponse<false> *res, uWS::HttpRequest *req)
     {
-        std::string document = "<h1>Hello " + std::string(req->getParameter(0)) + "</h1>";
-        document += "<p>Booting up: " + std::to_string(booting_up) + "</p>";
-        document += "<p>Done: " + std::to_string(done) + "</p>";
-        document += "<p>Client count: " + std::to_string(node_ids.size()) + "</p>";
-        document += "<p>Task queue size: " + std::to_string(task_queue.size()) + "</p>";
-        document += "<p>Task status: ";
-        auto [row_idx, col_idx] = unpack_action_id(task_queue.front());
-        document += "(" + std::to_string(row_idx) + ", " + std::to_string(col_idx) + ") ";
-        // for (auto x : task_queue)
-        // {
-        //     auto [row_idx, col_idx] = unpack_action_id(x);
-        //     document += "(" + std::to_string(row_idx) + ", " + std::to_string(col_idx) + ") ";
-        //     count += 1;
-        //     if (count > 10)
-        //         break;
-        // }
-        document += "</p>";
+        StatData stat = get_stat();
+        float avg_throughput = (stat.elapsed_time > 0) ? ((VECTOR_SIZE * VECTOR_SIZE - stat.remaining_task_count) * 1000.0 / stat.elapsed_time) : 0;
+        std::string document = "<h1>Current status</h1>";
+
+        document += "<p>Booting up: " + std::to_string(stat.booting_up) + "</p>";
+        document += "<p>Inserting data: " + std::to_string(stat.inserting_data) + "</p>";
+        document += "<p>Done: " + std::to_string(stat.done) + "</p>";
+        document += "<br/>";
+
+        document += "<p>Remaining task count: " + std::to_string(stat.remaining_task_count) + "</p>";
+        document += "<p>Client count: " + std::to_string(stat.client_count) + "</p>";
+        document += "<p>Elapsed time: " + std::to_string(stat.elapsed_time) + "</p>";
+        document += "<p>Average throughput: " + std::to_string(avg_throughput) + " tasks/sec</p>";
+        document += "<br/>";
+
+        if (task_queue.size() > 0)
+        {
+            document += "<p>Task status: ";
+            auto [row_idx, col_idx] = unpack_action_id(task_queue.front());
+            document += "(" + std::to_string(row_idx) + ", " + std::to_string(col_idx) + ") ";
+            // for (auto x : task_queue)
+            // {
+            //     auto [row_idx, col_idx] = unpack_action_id(x);
+            //     document += "(" + std::to_string(row_idx) + ", " + std::to_string(col_idx) + ") ";
+            //     count += 1;
+            //     if (count > 10)
+            //         break;
+            // }
+            document += "</p>";
+        }
         res->end(document);
     }
 };

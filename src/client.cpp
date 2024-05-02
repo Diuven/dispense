@@ -10,11 +10,13 @@
 
 bool connect_to_server(easywsclient::WebSocket::pointer &ws, const std::string &url)
 {
-    for (int i = 0; i < 30; i++)
+    for (int i = 0; i < 5; i++)
     {
         try
         {
             ws = easywsclient::WebSocket::from_url(url);
+            if (ws == nullptr)
+                throw std::runtime_error("Failed to connect to server");
             return true;
         }
         catch (const std::exception &e)
@@ -25,7 +27,7 @@ bool connect_to_server(easywsclient::WebSocket::pointer &ws, const std::string &
     }
     if (ws == nullptr)
     {
-        std::cout << "Failed to connect to server. Exiting" << std::endl;
+        std::cout << "Failed to connect to server." << std::endl;
         return false;
     }
     return false;
@@ -68,7 +70,7 @@ public:
         }
         else
         {
-            std::cout << "Failed to enter the network. Possibly port collision. Exiting..." << std::endl;
+            std::cout << "Failed to enter the network. Possibly id collision. Exiting..." << std::endl;
             stop = true;
             return std::make_tuple("", "");
         }
@@ -215,10 +217,6 @@ public:
     bool connect()
     {
         bool res = connect_to_server(ws, url);
-        if (!res)
-        {
-            std::cout << "Failed to connect to server. Exiting" << std::endl;
-        }
         return res;
     }
 
@@ -257,7 +255,7 @@ int main()
     manager = WebSocketManager(url, node_id);
     if (!manager.connect())
     {
-        std::cout << "Failed to connect to server. Exiting" << std::endl;
+        std::cout << "Exiting" << std::endl;
         return 0;
     }
 

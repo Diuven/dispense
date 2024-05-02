@@ -177,8 +177,8 @@ public:
 };
 
 const int MAX_VALUE = 1000;
-const int SIZE = 2000; // should not use
-const int VECTOR_SIZE = 1024;
+// const int SIZE = 2000; // should not use
+const int VECTOR_SIZE = 1000;
 
 void randomVector(Vector &v)
 {

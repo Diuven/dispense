@@ -8,8 +8,9 @@
 #include <queue>
 #include <mutex>
 #include <condition_variable>
+#include <utility>
 
-#include "mathlib.hpp"
+#include "utils/mathlib.hpp"
 
 void simpleMul(Matrix &A, Matrix &B, Matrix &C)
 {
@@ -146,7 +147,7 @@ void simpleDistributedMul(Matrix &A, Matrix &B, Matrix &C, int numThreads)
     int taskCount = 0;
     while (taskCount < A.rows * B.cols)
     {
-        if (taskCount % 5000 == 0)
+        if (taskCount % 50000 == 0)
             std::cout << "taskCount: " << taskCount << std::endl;
 
         TaskOutputType result = std::make_tuple(0, 0);
@@ -185,14 +186,14 @@ int main()
 {
     srand(time(0));
 
-    Matrix A = randomMatrix(SIZE, SIZE);
-    Matrix B = randomMatrix(SIZE, SIZE);
+    Matrix A = randomMatrix(VECTOR_SIZE, VECTOR_SIZE);
+    Matrix B = randomMatrix(VECTOR_SIZE, VECTOR_SIZE);
 
     std::cout << "Start\n";
 
     //
 
-    Matrix R1(SIZE, SIZE);
+    Matrix R1(VECTOR_SIZE, VECTOR_SIZE);
     auto start = std::chrono::high_resolution_clock::now();
     // simpleMul(A, B, R1);
     auto end = std::chrono::high_resolution_clock::now();
@@ -202,9 +203,9 @@ int main()
 
     // //
 
-    Matrix R2(SIZE, SIZE);
+    Matrix R2(VECTOR_SIZE, VECTOR_SIZE);
     start = std::chrono::high_resolution_clock::now();
-    simpleParallelMul(A, B, R2, 12);
+    simpleParallelMul(A, B, R2, 4);
     end = std::chrono::high_resolution_clock::now();
 
     diff = end - start;
@@ -212,9 +213,9 @@ int main()
 
     //
 
-    Matrix R3(SIZE, SIZE);
+    Matrix R3(VECTOR_SIZE, VECTOR_SIZE);
     start = std::chrono::high_resolution_clock::now();
-    simpleDistributedMul(A, B, R3, 12);
+    simpleDistributedMul(A, B, R3, 4);
     end = std::chrono::high_resolution_clock::now();
 
     diff = end - start;

@@ -7,3 +7,4 @@ CXXFLAGS = -std=c++20
 default:
 	g++ $(INCLUDES) $(LIBS) $(SOURCES) $(CXXFLAGS) src/client.cpp -o build/client
 	g++ $(INCLUDES) $(LIBS) $(SOURCES) $(CXXFLAGS) src/server.cpp -o build/server
+	g++ $(CXXFLAGS) src/main.cpp -o build/main

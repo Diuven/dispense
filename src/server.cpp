@@ -71,6 +71,7 @@ int main()
 
             std::cout << "Start!\n";
             handler_ptr->booting_up = false;
+            handler_ptr->start = std::chrono::high_resolution_clock::now();
             start = std::chrono::high_resolution_clock::now();
         });
 
