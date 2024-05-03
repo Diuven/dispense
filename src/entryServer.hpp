@@ -10,6 +10,16 @@
 #endif
 #include <fstream>
 
+std::string serialize_vector_for_web(const Vector &v)
+{
+    std::string s = "";
+    for (int i = 0; i < v.size; i++)
+    {
+        s += std::to_string(v.data[i]) + " ";
+    }
+    return s;
+}
+
 struct StatData
 {
     bool booting_up;
@@ -32,11 +42,11 @@ struct StatData
 
     std::string serialize()
     {
-        std::string s = std::to_string(booting_up) + ";;" +
-                        std::to_string(inserting_data) + ";;" +
-                        std::to_string(done) + ";;" +
-                        std::to_string(remaining_task_count) + ";;" +
-                        std::to_string(client_count) + ";;" +
+        std::string s = std::to_string(booting_up) + "::" +
+                        std::to_string(inserting_data) + "::" +
+                        std::to_string(done) + "::" +
+                        std::to_string(remaining_task_count) + "::" +
+                        std::to_string(client_count) + "::" +
                         std::to_string(elapsed_time);
         return s;
     }
@@ -192,14 +202,16 @@ public:
     std::tuple<std::string, std::string> handle_get_a(int node_id, std::string_view &data)
     {
         auto [a_row_idx, _] = unpack_action_id(action_ids[node_id]);
-        std::string serialized_a = a_rows[a_row_idx].serialize();
+        // std::string serialized_a = a_rows[a_row_idx].serialize();
+        std::string serialized_a = serialize_vector_for_web(a_rows[a_row_idx]);
         return std::make_tuple("GET_A_RESP", serialized_a);
     }
 
     std::tuple<std::string, std::string> handle_get_b(int node_id, std::string_view &data)
     {
         auto [_, b_col_idx] = unpack_action_id(action_ids[node_id]);
-        std::string serialized_b = b_cols[b_col_idx].serialize();
+        // std::string serialized_b = b_cols[b_col_idx].serialize();
+        std::string serialized_b = serialize_vector_for_web(b_cols[b_col_idx]);
         return std::make_tuple("GET_B_RESP", serialized_b);
     }
 

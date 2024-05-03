@@ -8,6 +8,32 @@
 #include <cstdlib>
 #include <csignal>
 
+Vector deserialize_vector_for_web(const std::string &s)
+{
+    Vector result(VECTOR_SIZE);
+    // parse int for splitted by space, do not use s.erase
+    std::string delimiter = " ";
+    size_t pos = 0;
+    int cur = 0;
+    for (int i = 0; i < s.size(); i++)
+    {
+        if (s[i] == ' ')
+        {
+            result.set(pos, cur);
+            cur = 0;
+            pos++;
+        }
+        else
+        {
+            cur = cur * 10 + (s[i] - '0');
+        }
+    }
+    if (cur != 0 && pos < VECTOR_SIZE)
+        result.set(pos, cur);
+
+    return result;
+}
+
 bool connect_to_server(easywsclient::WebSocket::pointer &ws, const std::string &url)
 {
     for (int i = 0; i < 5; i++)
@@ -111,7 +137,8 @@ public:
             return std::make_tuple("", "");
         }
 
-        a = Vector().deserialize(std::string(data));
+        // a = Vector().deserialize(std::string(data));
+        a = deserialize_vector_for_web(std::string(data));
         std::cout << "Received vector A with size: " << a.size << std::endl;
         // for (int i = 0; i < a.size; i++)
         // {
@@ -130,7 +157,8 @@ public:
             return std::make_tuple("", "");
         }
 
-        b = Vector().deserialize(std::string(data));
+        // b = Vector().deserialize(std::string(data));
+        b = deserialize_vector_for_web(std::string(data));
         std::cout << "Received vector B with size: " << b.size << std::endl;
         // for (int i = 0; i < a.size; i++)
         // {

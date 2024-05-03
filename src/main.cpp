@@ -195,7 +195,7 @@ int main()
 
     Matrix R1(VECTOR_SIZE, VECTOR_SIZE);
     auto start = std::chrono::high_resolution_clock::now();
-    // simpleMul(A, B, R1);
+    simpleMul(A, B, R1);
     auto end = std::chrono::high_resolution_clock::now();
 
     std::chrono::duration<double> diff = end - start;

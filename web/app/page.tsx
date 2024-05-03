@@ -4,8 +4,52 @@ import Image from "next/image";
 import APIClient from "./api";
 import React, { useState, useCallback, useEffect } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
+import { NodeHandler, WebsocketManager } from "./computing";
 
 export default function Home() {
+  const __SERVER_URL = "ws://localhost:9000";
+  const [socketUrl, setSocketUrl] = useState(__SERVER_URL);
+  // random between 1 ~ 999
+  const [nodeId, setNodeId] = useState(Math.floor(Math.random() * 999) + 1);
+  const [nodeHandler, setNodeHandler] = useState<NodeHandler>();
+  const [messageHistory, setMessageHistory] = useState<MessageEvent<any>[]>([]);
+
+  useEffect(() => {
+    console.log("nodeId set: ", nodeId);
+    setNodeHandler(new NodeHandler(nodeId));
+  }, [nodeId]);
+
+  const { sendMessage, lastMessage, readyState } = useWebSocket(socketUrl);
+
+  const messageHandler = useCallback(
+    async (gotMessage: MessageEvent<any>) => {
+      if (!nodeHandler) return;
+      const message = gotMessage.data;
+      // console.log("got message: ", message);
+      const response = await nodeHandler.messageHandler(message);
+      if (!response) return;
+      // console.log("sending response: ", response);
+      sendMessage(response);
+    },
+    [nodeHandler]
+  );
+
+  useEffect(() => {
+    if (!lastMessage) return;
+    messageHandler(lastMessage);
+  }, [lastMessage]);
+
+  const sendEnterMessage = useCallback(() => {
+    // console.log("nodeHandler: ", nodeHandler);
+    if (!nodeHandler) return;
+    const message = nodeHandler.makeEnterMessage();
+    if (!message) return;
+    // console.log("sending enter message: ", message);
+    sendMessage(message);
+  }, [nodeHandler]);
+
+  const handleClickSendMessage = useCallback(() => sendMessage("Hello"), []);
+
   // states
   const [test, setTest] = useState(false);
 
@@ -35,6 +79,21 @@ export default function Home() {
           </a>
         </div>
       </div>
+
+      <button onClick={sendEnterMessage}>Click Me to send enter message</button>
+      <button
+        onClick={handleClickSendMessage}
+        disabled={readyState !== ReadyState.OPEN}
+      >
+        Click Me to send 'Hello'
+      </button>
+      {/* <span>The WebSocket is currently {connectionStatus}</span> */}
+      {/* {lastMessage ? <span>Last message: {lastMessage.data}</span> : null} */}
+      <ul>
+        {messageHistory.map((message, idx) => (
+          <span key={idx}>{message ? message.data : null}</span>
+        ))}
+      </ul>
 
       <button
         onClick={() => {
