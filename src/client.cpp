@@ -14,18 +14,22 @@ Vector deserialize_vector_for_web(const std::string &s)
     // parse int for splitted by space, do not use s.erase
     std::string delimiter = " ";
     size_t pos = 0;
-    int cur = 0;
+    int cur = 0, sign = 1;
     for (int i = 0; i < s.size(); i++)
     {
         if (s[i] == ' ')
         {
             result.set(pos, cur);
-            cur = 0;
+            cur = 0, sign = 1;
             pos++;
+        }
+        else if (s[i] == '-')
+        {
+            cur = 0, sign = -1;
         }
         else
         {
-            cur = cur * 10 + (s[i] - '0');
+            cur = cur * 10 + sign * (s[i] - '0');
         }
     }
     if (cur != 0 && pos < VECTOR_SIZE)

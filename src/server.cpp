@@ -18,7 +18,7 @@ int main()
     auto handler_ptr = new EntryServerHandler();
     uWS::App app =
         uWS::App()
-            .get("/hello/:name",
+            .get("/stats",
                  [&handler_ptr](auto *res, auto *req)
                  { handler_ptr->get_stat_handler(res, req); })
             .ws<WebSocketData>(
@@ -55,6 +55,9 @@ int main()
     Matrix A = randomMatrix(VECTOR_SIZE, VECTOR_SIZE);
     Matrix B = randomMatrix(VECTOR_SIZE, VECTOR_SIZE);
     Matrix R(VECTOR_SIZE, VECTOR_SIZE);
+    for (int i = 0; i < VECTOR_SIZE; i++)
+        for (int j = 0; j < VECTOR_SIZE; j++)
+            R.set(i, j, 0);
 
     auto start = std::chrono::high_resolution_clock::now();
     auto end = std::chrono::high_resolution_clock::now();
@@ -98,7 +101,6 @@ int main()
                 }
             }
             end = std::chrono::high_resolution_clock::now();
-            app.close();
 
             // check answers
             bool was_wrong = false;
@@ -106,9 +108,9 @@ int main()
                 for (int j = 0; j < VECTOR_SIZE; j++)
                 {
                     long long now = A.getRow(i).dot(B.getCol(j));
-                    if (R.get(i, j) != now)
+                    if (R.get(i, j) / 2 != now)
                     {
-                        std::cout << "Error at " << i << " " << j << " : " << R.get(i, j) << " != " << now << std::endl;
+                        std::cout << "Error at " << i << " " << j << " : " << R.get(i, j) / 2 << " != " << now << std::endl;
                         was_wrong = true;
                     }
                 }
@@ -119,6 +121,9 @@ int main()
     app.run();
     bootup_thread.join();
     cleanup_thread.join();
+
+    std::this_thread::sleep_for(std::chrono::minutes(5));
+    app.close();
 
     return 0;
 }

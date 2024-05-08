@@ -1,10 +1,5 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
-import useWebSocket, { ReadyState } from "react-use-websocket";
-
-const SERVER_URL = "ws://localhost:9000";
-
 class Vector {
   size: number;
   data: number[];
@@ -50,26 +45,33 @@ function formatMessage(
 }
 
 export class NodeHandler {
-  stop = false;
+  stopHandler: () => void;
   node_id: number;
   action_id: number;
   a: Vector;
   b: Vector;
+  computed_count: number;
 
-  constructor(node_id: number) {
+  constructor(node_id: number, stopHandler: () => void) {
     this.node_id = node_id;
+    this.stopHandler = stopHandler;
     this.action_id = -1;
     this.a = new Vector();
     this.b = new Vector();
+    this.computed_count = 0;
   }
 
   makeEnterMessage() {
     return formatMessage(this.node_id, "ENTER", -1, "");
   }
 
+  makeCloseMessage() {
+    return formatMessage(this.node_id, "CLOSE", -1, "");
+  }
+
   handleStop(data: string) {
     console.log("Received stop message. Stopping...");
-    this.stop = true;
+    this.stopHandler();
     return ["", ""];
   }
 
@@ -84,7 +86,7 @@ export class NodeHandler {
       console.log(
         "Failed to enter the network. Possibly id collision. Exiting..."
       );
-      this.stop = true;
+      this.stopHandler();
       return ["", ""];
     }
   }
@@ -97,7 +99,7 @@ export class NodeHandler {
       return ["NUDGE", ""];
     } else {
       console.log("Should not happen. Exiting...");
-      this.stop = true;
+      this.stopHandler();
       return ["", ""];
     }
   }
@@ -113,7 +115,7 @@ export class NodeHandler {
   handleGetAResp(got_action_id: number, data: string) {
     if (got_action_id != this.action_id) {
       console.log("Action ID mismatch in handle_get_a_resp. Exiting...");
-      this.stop = true;
+      this.stopHandler();
       return ["", ""];
     }
 
@@ -125,13 +127,14 @@ export class NodeHandler {
   handleGetBResp(got_action_id: number, data: string) {
     if (got_action_id != this.action_id) {
       console.log("Action ID mismatch in handle_get_b_resp. Exiting...");
-      this.stop = true;
+      this.stopHandler();
       return ["", ""];
     }
 
     this.b.deserialize(data);
 
     let result = this.a.dot(this.b);
+    this.computed_count += 1;
     return ["RETURN", result.toString()];
   }
 
@@ -161,7 +164,7 @@ export class NodeHandler {
 
     if (action_id > 0 && action_id != this.action_id) {
       console.log("Action ID mismatch in message_handler. Exiting...");
-      this.stop = true;
+      this.stopHandler();
     }
 
     if (res_op_type == "") return "";
@@ -176,81 +179,3 @@ export class NodeHandler {
     }
   }
 }
-
-export class WebsocketManager {
-  socketUrl: string;
-  messageHistory: MessageEvent<any>[];
-  sendMessage: (message: string) => void;
-  lastMessage: MessageEvent<any> | null;
-  readyState: ReadyState;
-
-  constructor() {
-    this.socketUrl = SERVER_URL;
-    this.messageHistory = [];
-    this.sendMessage = () => {};
-    this.lastMessage = null;
-    this.readyState = ReadyState.UNINSTANTIATED;
-  }
-
-  async start() {
-    const { sendMessage, lastMessage, readyState } = useWebSocket(
-      this.socketUrl
-    );
-    this.sendMessage = sendMessage;
-    this.lastMessage = lastMessage;
-    this.readyState = readyState;
-  }
-
-  async stop() {}
-}
-
-/*
-export default function Page() {
-  const [socketUrl, setSocketUrl] = useState(SERVER_URL);
-  const [messageHistory, setMessageHistory] = useState<MessageEvent<any>[]>([]);
-
-  const { sendMessage, lastMessage, readyState } = useWebSocket(socketUrl);
-
-  useEffect(() => {
-    if (lastMessage !== null) {
-      setMessageHistory((prev) => prev.concat(lastMessage));
-    }
-  }, [lastMessage]);
-
-  const handleClickChangeSocketUrl = useCallback(
-    () => setSocketUrl("wss://demos.kaazing.com/echo"),
-    []
-  );
-
-  const handleClickSendMessage = useCallback(() => sendMessage("Hello"), []);
-
-  const connectionStatus = {
-    [ReadyState.CONNECTING]: "Connecting",
-    [ReadyState.OPEN]: "Open",
-    [ReadyState.CLOSING]: "Closing",
-    [ReadyState.CLOSED]: "Closed",
-    [ReadyState.UNINSTANTIATED]: "Uninstantiated",
-  }[readyState];
-
-  //   return (
-  //     <div>
-  //       <button onClick={handleClickChangeSocketUrl}>
-  //         Click Me to change Socket Url
-  //       </button>
-  //       <button
-  //         onClick={handleClickSendMessage}
-  //         disabled={readyState !== ReadyState.OPEN}
-  //       >
-  //         Click Me to send 'Hello'
-  //       </button>
-  //       <span>The WebSocket is currently {connectionStatus}</span>
-  //       {lastMessage ? <span>Last message: {lastMessage.data}</span> : null}
-  //       <ul>
-  //         {messageHistory.map((message, idx) => (
-  //           <span key={idx}>{message ? message.data : null}</span>
-  //         ))}
-  //       </ul>
-  //     </div>
-  //   );
-}
-*/

@@ -40,6 +40,16 @@ public:
         return result;
     }
 
+    Vector operator-(Vector &other)
+    {
+        Vector result(size);
+        for (int i = 0; i < size; i++)
+        {
+            result.set(i, get(i) - other.get(i));
+        }
+        return result;
+    }
+
     Vector operator*(int scalar)
     {
         Vector result(size);
@@ -124,6 +134,11 @@ public:
         data[i][j] = value;
     }
 
+    void add(int i, int j, int value)
+    {
+        data[i][j] += value;
+    }
+
     Vector getRow(int i)
     {
         Vector result = Vector(cols);
@@ -178,13 +193,18 @@ public:
 
 const int MAX_VALUE = 1000;
 // const int SIZE = 2000; // should not use
-const int VECTOR_SIZE = 1000;
+const int VECTOR_SIZE = 100;
+const int SHUFFLE_SIZE = 16;
+
+auto _seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+auto _g = std::mt19937(_seed);
+auto _dist = std::uniform_int_distribution<int>(0, MAX_VALUE - 1);
 
 void randomVector(Vector &v)
 {
     for (int i = 0; i < v.size; i++)
     {
-        v.set(i, rand() % MAX_VALUE);
+        v.set(i, _dist(_g));
     }
 }
 
@@ -195,6 +215,14 @@ Vector randomVector(int size)
     return result;
 }
 
+Vector applyPerm(Vector &v, int perm[VECTOR_SIZE])
+{
+    Vector result(VECTOR_SIZE);
+    for (int i = 0; i < v.size; i++)
+        result.set(i, v.get(perm[i]));
+    return result;
+}
+
 Matrix randomMatrix(int rows, int cols)
 {
     Matrix result(rows, cols);
@@ -202,7 +230,7 @@ Matrix randomMatrix(int rows, int cols)
     {
         for (int j = 0; j < cols; j++)
         {
-            result.set(i, j, rand() % MAX_VALUE);
+            result.set(i, j, _dist(_g));
         }
     }
     return result;
